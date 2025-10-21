@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refleksi Pembelajaran: Optimasi Sistem Logistik</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony Neutrals -->
+    <!-- Application Structure Plan: The application uses a tabbed or switched-view structure, allowing the user to focus on one of two core topics at a time: Inventory (r,q) or Transportation (VSP). This is chosen to mirror the user's own reflection, which distinctly separated these two concepts. A persistent bottom section synthesizes the two, reinforcing the key takeaway that these systems are interconnected. This task-oriented design (explore inventory, then explore routing) is more effective for deep learning than a single, long scrolling page, as it reduces cognitive load and encourages focused interaction with each model. -->
+    <!-- Visualization & Content Choices: Report Info: (r,q) model with uncertainty -> Goal: Explore cost/service trade-offs -> Viz/Method: Interactive dashboard with sliders, a dynamic line chart of inventory levels (Chart.js/Canvas), and KPI cards -> Interaction: User adjusts variability and policy levers (r, q) to see real-time impact on chart and costs -> Justification: Makes the abstract trade-off concept tangible and visually immediate. Report Info: VSP complexity with constraints -> Goal: Illustrate the impact of constraints -> Viz/Method: Simplified map diagram built with HTML divs for locations and a Canvas for drawing routes -> Interaction: Buttons to toggle constraints like 'Time Windows' or 'Vehicle Capacity', which visually alters the route and provides explanatory text -> Justification: A full VSP solver is overkill; this approach effectively teaches the *consequence* of constraints on route planning, which is the core learning objective. Report Info: Connection between inventory & logistics -> Goal: Synthesize -> Viz/Method: Simple flowchart diagram (HTML/Tailwind) -> Interaction: Static visual -> Justification: Provides a clear, final summary of the user's main insight. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #1e293b; /* slate-800 */
+        }
+        .nav-button {
+            transition: all 0.2s ease-in-out;
+        }
+        .nav-button.active {
+            background-color: #0f766e; /* teal-700 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 45vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 0.875rem;
+        }
+        .slider-value {
+            font-weight: 600;
+            color: #0f766e;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #0f766e;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #0f766e;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 text-center">
+            <h1 class="text-3xl font-bold text-teal-800">Refleksi Pembelajaran: Optimasi Sistem Logistik</h1>
+            <p class="text-slate-600 mt-1">Dasbor Interaktif untuk Mengeksplorasi Model Persediaan & Transportasi</p>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+        <nav class="flex justify-center space-x-2 sm:space-x-4 mb-8">
+            <button id="nav-rq" class="nav-button active px-4 py-2 sm:px-6 sm:py-3 rounded-full font-semibold bg-white text-slate-700 shadow-sm" onclick="showView('rq')">
+                📦 Model Persediaan (r, q)
+            </button>
+            <button id="nav-vsp" class="nav-button px-4 py-2 sm:px-6 sm:py-3 rounded-full font-semibold bg-white text-slate-700 shadow-sm" onclick="showView('vsp')">
+                🚚 Optimasi Transportasi (VSP)
+            </button>
+        </nav>
+
+        <div id="view-rq">
+            <section class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Analisis Ketidakpastian: Model (r, q)</h2>
+                <p class="text-slate-600 mb-6 max-w-4xl">Model ini adalah kunci untuk mengelola persediaan saat permintaan dan waktu tunggu tidak pasti. Tujuan utamanya adalah menyeimbangkan biaya penyimpanan, biaya pemesanan, dan risiko kehabisan stok. Eksplorasi di bawah ini akan menunjukkan bagaimana penyesuaian kecil pada kebijakan dapat berdampak besar pada kinerja keseluruhan.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-4 space-y-4">
+                        <div>
+                            <label for="reorderPoint" class="slider-label"><span>Titik Pemesanan Ulang (r)</span><span id="reorderPointValue" class="slider-value"></span></label>
+                            <input type="range" id="reorderPoint" min="20" max="150" value="75" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                            <p class="text-xs text-slate-500 mt-1">Termasuk permintaan rata-rata + safety stock.</p>
+                        </div>
+                        <div>
+                            <label for="demandStdDev" class="slider-label"><span>Variabilitas Permintaan (σ)</span><span id="demandStdDevValue" class="slider-value"></span></label>
+                            <input type="range" id="demandStdDev" min="1" max="15" value="5" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                            <p class="text-xs text-slate-500 mt-1">Meningkatkan ini mensimulasikan pasar yang lebih tidak menentu.</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 pt-4 text-center">
+                             <div class="bg-slate-100 p-3 rounded-lg">
+                                <p class="text-sm text-slate-500">Biaya Penyimpanan</p>
+                                <p id="holdingCost" class="text-lg font-bold"></p>
+                            </div>
+                            <div class="bg-red-50 p-3 rounded-lg">
+                                <p class="text-sm text-red-500">Biaya Kehabisan Stok</p>
+                                <p id="stockoutCost" class="text-lg font-bold text-red-600"></p>
+                            </div>
+                        </div>
+                         <div class="bg-teal-50 p-4 rounded-lg mt-2 text-center">
+                            <p class="text-sm font-semibold text-teal-700">Tingkat Layanan Tercapai</p>
+                            <p id="serviceLevel" class="text-2xl font-bold text-teal-800"></p>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-8">
+                        <div class="chart-container">
+                            <canvas id="inventoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="view-vsp" style="display: none;">
+             <section class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Optimasi Jaringan Fisik: Vehicle Scheduling Problem (VSP)</h2>
+                <p class="text-slate-600 mb-6 max-w-4xl">VSP berfokus pada cara merancang rute dan jadwal yang paling efisien. Ini lebih dari sekadar mencari jarak terpendek; VSP harus memperhitungkan batasan dunia nyata. Gunakan kontrol di bawah untuk melihat bagaimana setiap batasan mengubah kompleksitas masalah dan solusi rutenya.</p>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-4 space-y-4">
+                        <h3 class="font-semibold text-lg">Kontrol Skenario</h3>
+                        <div class="space-y-3">
+                             <button id="btn-base" class="w-full text-left p-3 rounded-lg border-2 border-teal-600 bg-teal-50 font-semibold">1. Rute Dasar (Jarak Terdekat)</button>
+                             <button id="btn-time" class="w-full text-left p-3 rounded-lg border bg-white">2. Tambahkan Batasan Waktu</button>
+                             <button id="btn-capacity" class="w-full text-left p-3 rounded-lg border bg-white">3. Tambahkan Batasan Kapasitas</button>
+                        </div>
+                        <div id="vsp-explanation" class="bg-slate-50 p-4 rounded-lg mt-4">
+                            <h4 class="font-semibold text-slate-700">Penjelasan Skenario</h4>
+                            <p class="text-sm text-slate-600 mt-1">Pilih sebuah skenario untuk melihat penjelasan dan visualisasinya.</p>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-8">
+                        <div id="vsp-canvas-container" class="relative w-full aspect-video bg-slate-100 rounded-lg overflow-hidden">
+                            <canvas id="vspCanvas" class="absolute top-0 left-0"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+        
+        <section id="synthesis" class="mt-12 bg-teal-800 text-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-center mb-6">Sintesis: Keterkaitan Sistem Logistik</h2>
+            <p class="text-center text-teal-100 max-w-3xl mx-auto mb-8">Kompetensi kunci adalah memahami bahwa logistik adalah sebuah sistem terintegrasi. Keputusan dalam manajemen persediaan (kapan dan berapa banyak memesan) secara langsung memengaruhi efisiensi dan biaya operasi transportasi, dan sebaliknya.</p>
+            <div class="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 text-center">
+                <div class="bg-white/10 p-4 rounded-lg">
+                    <h3 class="font-semibold">Kebijakan Persediaan (r, q)</h3>
+                    <p class="text-sm text-teal-200">Menentukan frekuensi & ukuran pesanan.</p>
+                </div>
+                <div class="text-2xl font-bold text-teal-300 transform md:rotate-0 rotate-90">&rarr;</div>
+                <div class="bg-white/10 p-4 rounded-lg">
+                    <h3 class="font-semibold">Kebutuhan Transportasi</h3>
+                    <p class="text-sm text-teal-200">Menciptakan permintaan untuk pengiriman.</p>
+                </div>
+                 <div class="text-2xl font-bold text-teal-300 transform md:rotate-0 rotate-90">&rarr;</div>
+                <div class="bg-white/10 p-4 rounded-lg">
+                    <h3 class="font-semibold">Optimasi Rute (VSP)</h3>
+                    <p class="text-sm text-teal-200">Menjadwalkan pengiriman secara efisien.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let inventoryChart;
+        let vspCanvas, vspCtx;
+        
+        const views = {
+            rq: document.getElementById('view-rq'),
+            vsp: document.getElementById('view-vsp')
+        };
+        const navButtons = {
+            rq: document.getElementById('nav-rq'),
+            vsp: document.getElementById('nav-vsp')
+        };
+
+        function showView(viewName) {
+            Object.values(views).forEach(view => view.style.display = 'none');
+            Object.values(navButtons).forEach(btn => btn.classList.remove('active'));
+            views[viewName].style.display = 'block';
+            navButtons[viewName].classList.add('active');
+            if (viewName === 'vsp') {
+                initVSPCanvas();
+            }
+        }
+
+        function boxMullerTransform() {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random();
+            while (v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        function getNormallyDistributedRandomNumber(mean, stddev) {
+            return mean + boxMullerTransform() * stddev;
+        }
+
+        function runInventorySimulation() {
+            const r = parseInt(document.getElementById('reorderPoint').value);
+            const demandStdDev = parseFloat(document.getElementById('demandStdDev').value);
+            
+            document.getElementById('reorderPointValue').textContent = r;
+            document.getElementById('demandStdDevValue').textContent = demandStdDev.toFixed(1);
+
+            const AVG_DEMAND = 10;
+            const LEAD_TIME = 5;
+            const Q = 100;
+            const SIMULATION_DAYS = 100;
+            const COST_HOLDING_PER_UNIT = 1;
+            const COST_STOCKOUT_PER_UNIT = 15;
+            
+            let inventoryLevel = Q;
+            let onOrder = false;
+            let leadTimeRemaining = 0;
+
+            let totalHoldingCost = 0;
+            let totalStockoutCost = 0;
+            let totalDemand = 0;
+            let satisfiedDemand = 0;
+            
+            const dailyInventory = [];
+
+            for (let day = 0; day < SIMULATION_DAYS; day++) {
+                if (leadTimeRemaining > 0) {
+                    leadTimeRemaining--;
+                    if (leadTimeRemaining === 0) {
+                        inventoryLevel += Q;
+                        onOrder = false;
+                    }
+                }
+                
+                const demand = Math.max(0, Math.round(getNormallyDistributedRandomNumber(AVG_DEMAND, demandStdDev)));
+                totalDemand += demand;
+
+                if (inventoryLevel >= demand) {
+                    satisfiedDemand += demand;
+                    inventoryLevel -= demand;
+                } else {
+                    satisfiedDemand += inventoryLevel;
+                    totalStockoutCost += (demand - inventoryLevel) * COST_STOCKOUT_PER_UNIT;
+                    inventoryLevel = 0;
+                }
+
+                totalHoldingCost += inventoryLevel * COST_HOLDING_PER_UNIT;
+
+                if (!onOrder && inventoryLevel <= r) {
+                    onOrder = true;
+                    leadTimeRemaining = LEAD_TIME;
+                }
+                dailyInventory.push(inventoryLevel);
+            }
+
+            document.getElementById('holdingCost').textContent = `Rp ${Math.round(totalHoldingCost).toLocaleString('id-ID')}`;
+            document.getElementById('stockoutCost').textContent = `Rp ${Math.round(totalStockoutCost).toLocaleString('id-ID')}`;
+            const serviceLevel = totalDemand > 0 ? (satisfiedDemand / totalDemand) * 100 : 100;
+            document.getElementById('serviceLevel').textContent = `${serviceLevel.toFixed(1)}%`;
+            
+            updateInventoryChart(dailyInventory, r);
+        }
+
+        function updateInventoryChart(data, reorderPoint) {
+            const labels = Array.from({ length: data.length }, (_, i) => `Hari ${i + 1}`);
+            if (inventoryChart) {
+                inventoryChart.data.labels = labels;
+                inventoryChart.data.datasets[0].data = data;
+                inventoryChart.data.datasets[1].data = Array(data.length).fill(reorderPoint);
+                inventoryChart.update('none');
+            } else {
+                 inventoryChart = new Chart(document.getElementById('inventoryChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Level Persediaan',
+                                data: data,
+                                borderColor: '#0f766e',
+                                backgroundColor: 'rgba(15, 118, 110, 0.1)',
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Titik Pemesanan Ulang (r)',
+                                data: Array(data.length).fill(reorderPoint),
+                                borderColor: '#be123c',
+                                borderDash: [5, 5],
+                                borderWidth: 2,
+                                fill: false,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true, title: { display: true, text: 'Unit' } } }
+                    }
+                });
+            }
+        }
+        
+        const vspNodes = {
+            depot: { x: 0.1, y: 0.5, label: 'D', color: '#1e293b' },
+            a: { x: 0.3, y: 0.2, label: 'A', color: '#0f766e', demand: 5 },
+            b: { x: 0.45, y: 0.8, label: 'B', color: '#0f766e', demand: 8 },
+            c: { x: 0.7, y: 0.3, label: 'C', color: '#0f766e', demand: 6 },
+            d: { x: 0.9, y: 0.6, label: 'D', color: '#0f766e', demand: 7 }
+        };
+        const vspExplanationEl = document.getElementById('vsp-explanation');
+
+        function drawVSPNodes() {
+            const container = document.getElementById('vsp-canvas-container');
+            container.querySelectorAll('.vsp-node').forEach(n => n.remove());
+
+            for (const key in vspNodes) {
+                const node = vspNodes[key];
+                const div = document.createElement('div');
+                div.className = 'vsp-node absolute flex items-center justify-center w-10 h-10 rounded-full font-bold text-white shadow-lg';
+                div.style.backgroundColor = node.color;
+                div.style.left = `calc(${node.x * 100}% - 20px)`;
+                div.style.top = `calc(${node.y * 100}% - 20px)`;
+                div.textContent = node.label;
+                container.appendChild(div);
+            }
+        }
+
+        function drawVSPRoute(path, color = '#475569', dashed = false) {
+            vspCtx.beginPath();
+            vspCtx.strokeStyle = color;
+            vspCtx.lineWidth = 3;
+            if (dashed) {
+                vspCtx.setLineDash([5, 5]);
+            } else {
+                vspCtx.setLineDash([]);
+            }
+
+            const startNode = vspNodes[path[0]];
+            vspCtx.moveTo(startNode.x * vspCanvas.width, startNode.y * vspCanvas.height);
+            for (let i = 1; i < path.length; i++) {
+                const node = vspNodes[path[i]];
+                vspCtx.lineTo(node.x * vspCanvas.width, node.y * vspCanvas.height);
+            }
+            vspCtx.stroke();
+        }
+
+        function clearVSPCanvas() {
+            vspCtx.clearRect(0, 0, vspCanvas.width, vspCanvas.height);
+        }
+
+        function initVSPCanvas() {
+            if (vspCanvas) return;
+            vspCanvas = document.getElementById('vspCanvas');
+            const container = document.getElementById('vsp-canvas-container');
+            vspCanvas.width = container.clientWidth;
+            vspCanvas.height = container.clientHeight;
+            vspCtx = vspCanvas.getContext('2d');
+            
+            drawVSPNodes();
+            showVSPScenario('base');
+
+            document.getElementById('btn-base').addEventListener('click', () => showVSPScenario('base'));
+            document.getElementById('btn-time').addEventListener('click', () => showVSPScenario('time'));
+            document.getElementById('btn-capacity').addEventListener('click', () => showVSPScenario('capacity'));
+        }
+
+        function showVSPScenario(scenario) {
+            clearVSPCanvas();
+            const buttons = document.querySelectorAll('#view-vsp button');
+            buttons.forEach(b => {
+                b.classList.remove('border-teal-600', 'bg-teal-50', 'font-semibold');
+                b.classList.add('border', 'bg-white');
+            });
+            
+            let explanationHTML = '';
+            
+            if (scenario === 'base') {
+                document.getElementById('btn-base').classList.add('border-teal-600', 'bg-teal-50', 'font-semibold');
+                drawVSPRoute(['depot', 'a', 'c', 'd', 'b', 'depot']);
+                explanationHTML = `<h4 class="font-semibold text-slate-700">Rute Dasar</h4><p class="text-sm text-slate-600 mt-1">Sistem hanya mengoptimalkan jarak. Rute terlihat efisien, mengunjungi setiap titik secara berurutan.</p>`;
+            } else if (scenario === 'time') {
+                document.getElementById('btn-time').classList.add('border-teal-600', 'bg-teal-50', 'font-semibold');
+                drawVSPRoute(['depot', 'a', 'b', 'depot']);
+                drawVSPRoute(['depot', 'c', 'd', 'depot'], '#0f766e');
+                explanationHTML = `<h4 class="font-semibold text-slate-700">Batasan Waktu</h4><p class="text-sm text-slate-600 mt-1">Pelanggan C & D hanya bisa dilayani sore hari. Sistem membuat rute kedua khusus untuk mereka, mengubah urutan optimal untuk memenuhi jadwal.</p>`;
+            } else if (scenario === 'capacity') {
+                document.getElementById('btn-capacity').classList.add('border-teal-600', 'bg-teal-50', 'font-semibold');
+                drawVSPRoute(['depot', 'b', 'c', 'depot']);
+                drawVSPRoute(['depot', 'a', 'd', 'depot'], '#0f766e', true);
+                explanationHTML = `<h4 class="font-semibold text-slate-700">Batasan Kapasitas</h4><p class="text-sm text-slate-600 mt-1">Kendaraan hanya mampu membawa 15 unit. Setelah mengunjungi B & C (total 14 unit), kendaraan harus kembali ke depot. Kendaraan kedua (rute putus-putus) diperlukan untuk melayani A & D.</p>`;
+            }
+            vspExplanationEl.innerHTML = explanationHTML;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('reorderPoint').addEventListener('input', runInventorySimulation);
+            document.getElementById('demandStdDev').addEventListener('input', runInventorySimulation);
+            runInventorySimulation();
+        });
+    </script>
+
+</body>
+</html>
+

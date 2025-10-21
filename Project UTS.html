@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eksplorasi Sistem Persediaan (s, Q)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: The app uses a thematic, single-page scrolling structure to guide the user from basic concepts to interactive exploration. It starts with 'What is (s,Q)?', moves to a visual 'How it works' diagram, then presents the core 'Interactive Simulator' dashboard, and concludes with 'Key Learnings'. This structure is chosen over a simple report layout because it facilitates active learning. The user first understands the components, then sees them in action, and finally experiments with them to discover the underlying trade-offs, which is the most effective way to grasp the complexities of inventory management under uncertainty. -->
+    <!-- Visualization & Content Choices: Report Info: (s,Q) system definition -> Goal: Inform -> Viz/Method: Icon cards (HTML/Tailwind) -> Interaction: None -> Justification: Clear, scannable definitions. Report Info: Inventory cycle -> Goal: Explain Process -> Viz/Method: Step-by-step diagram (HTML/Tailwind Flexbox) -> Interaction: Static visual aid -> Justification: Visualizes the time-based flow clearly. Report Info: Impact of variables on cost/service -> Goal: Explore & Compare -> Viz/Method: Dashboard with sliders, a dynamic line chart (Chart.js/Canvas), and KPI cards (HTML) -> Interaction: User adjusts sliders to see real-time updates on the chart and KPIs -> Justification: This is the core learning tool, allowing for direct, hands-on discovery of the trade-offs between reorder point, order quantity, safety stock, costs, and service level. Report Info: Key takeaways -> Goal: Summarize -> Viz/Method: Accordion/toggleable cards (HTML/JS) -> Interaction: Click to reveal -> Justification: Organizes summary points without cluttering the UI. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f4f5;
+            color: #18181b;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .slider-value {
+            font-weight: 600;
+            color: #0d9488;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #0d9488;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #0d9488;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <h1 class="text-2xl sm:text-3xl font-bold text-teal-700 text-center">Eksplorasi Sistem Persediaan (s, Q)</h1>
+            <p class="text-center text-zinc-600 mt-1">Dasbor Interaktif untuk Memahami Manajemen Inventaris</p>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <section id="introduction" class="mb-12">
+            <h2 class="text-2xl font-bold text-zinc-800 mb-4">Apa itu Sistem (s, Q)?</h2>
+            <p class="text-zinc-600 mb-6 max-w-4xl">Sistem (s, Q) adalah kebijakan kontrol persediaan yang fundamental. Ketika tingkat persediaan turun ke titik pemesanan ulang ('s'), pesanan baru sejumlah kuantitas pesanan ('Q') dibuat. Tantangan utamanya adalah menentukan 's' dan 'Q' yang optimal, terutama ketika permintaan pelanggan dan waktu tunggu pemasok tidak pasti (acak).</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-lg shadow">
+                    <h3 class="font-bold text-teal-700">s: Titik Pemesanan Ulang</h3>
+                    <p class="text-sm text-zinc-600 mt-2">Level persediaan minimum yang memicu pemesanan baru. Tujuannya adalah untuk memiliki cukup stok selama waktu tunggu.</p>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow">
+                    <h3 class="font-bold text-teal-700">Q: Kuantitas Pesanan</h3>
+                    <p class="text-sm text-zinc-600 mt-2">Jumlah unit yang dipesan setiap kali pemesanan dilakukan. Ini menyeimbangkan biaya pemesanan dan biaya penyimpanan.</p>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow">
+                    <h3 class="font-bold text-red-600">Permintaan Acak</h3>
+                    <p class="text-sm text-zinc-600 mt-2">Jumlah produk yang diinginkan pelanggan bervariasi dari waktu ke waktu, menciptakan ketidakpastian.</p>
+                </div>
+                <div class="bg-white p-5 rounded-lg shadow">
+                    <h3 class="font-bold text-red-600">Waktu Tunggu Acak</h3>
+                    <p class="text-sm text-zinc-600 mt-2">Waktu antara pemesanan dan penerimaan barang bervariasi, menambah lapisan ketidakpastian lain.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="simulator" class="bg-white p-4 sm:p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-zinc-800 mb-2">🚀 Simulator Interaktif</h2>
+            <p class="text-zinc-600 mb-6 max-w-4xl">Gunakan kontrol di bawah ini untuk mengubah parameter sistem. Amati bagaimana grafik level persediaan dan metrik kinerja utama berubah secara dinamis. Tujuannya adalah menemukan keseimbangan antara biaya dan tingkat layanan.</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-1 space-y-5 pr-4">
+                    <div>
+                        <label for="reorderPoint" class="slider-label"><span>Titik Pemesanan Ulang (s)</span> <span id="reorderPointValue" class="slider-value"></span></label>
+                        <input type="range" id="reorderPoint" min="10" max="200" value="50" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="orderQuantity" class="slider-label"><span>Kuantitas Pesanan (Q)</span> <span id="orderQuantityValue" class="slider-value"></span></label>
+                        <input type="range" id="orderQuantity" min="20" max="300" value="100" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="avgDemand" class="slider-label"><span>Rata-rata Permintaan / hari</span> <span id="avgDemandValue" class="slider-value"></span></label>
+                        <input type="range" id="avgDemand" min="1" max="20" value="10" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="demandStdDev" class="slider-label"><span>Variabilitas Permintaan (σ)</span> <span id="demandStdDevValue" class="slider-value"></span></label>
+                        <input type="range" id="demandStdDev" min="0" max="10" value="3" step="0.5" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="avgLeadTime" class="slider-label"><span>Rata-rata Waktu Tunggu (hari)</span> <span id="avgLeadTimeValue" class="slider-value"></span></label>
+                        <input type="range" id="avgLeadTime" min="1" max="15" value="5" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                     <div>
+                        <label for="leadTimeStdDev" class="slider-label"><span>Variabilitas Waktu Tunggu (σ)</span> <span id="leadTimeStdDevValue" class="slider-value"></span></label>
+                        <input type="range" id="leadTimeStdDev" min="0" max="7" value="1" step="0.5" class="w-full h-2 bg-zinc-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+                <div class="lg:col-span-2">
+                    <div class="chart-container">
+                        <canvas id="inventoryChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-center">
+                        <div class="bg-zinc-100 p-3 rounded-lg">
+                            <p class="text-sm text-zinc-500">Total Biaya</p>
+                            <p id="totalCost" class="text-xl font-bold"></p>
+                        </div>
+                        <div class="bg-zinc-100 p-3 rounded-lg">
+                            <p class="text-sm text-zinc-500">Biaya Penyimpanan</p>
+                            <p id="holdingCost" class="text-xl font-bold"></p>
+                        </div>
+                        <div class="bg-zinc-100 p-3 rounded-lg">
+                            <p class="text-sm text-zinc-500">Biaya Pemesanan</p>
+                            <p id="orderingCost" class="text-xl font-bold"></p>
+                        </div>
+                        <div class="bg-red-50 p-3 rounded-lg">
+                            <p class="text-sm text-red-500">Biaya Kekurangan</p>
+                            <p id="stockoutCost" class="text-xl font-bold text-red-600"></p>
+                        </div>
+                    </div>
+                     <div class="bg-teal-50 p-3 rounded-lg mt-3 text-center">
+                        <p class="text-sm text-teal-600">Tingkat Layanan (Permintaan Terpenuhi)</p>
+                        <p id="serviceLevel" class="text-2xl font-bold text-teal-700"></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="learnings" class="mt-12">
+            <h2 class="text-2xl font-bold text-zinc-800 mb-4">Poin Pembelajaran Utama</h2>
+            <div class="space-y-3">
+                <div class="bg-white rounded-lg shadow accordion-item">
+                    <button class="w-full text-left p-4 font-semibold text-zinc-700 flex justify-between items-center accordion-header">
+                        1. Pertukaran (Trade-off) Biaya vs. Tingkat Layanan
+                        <span class="transform transition-transform duration-300">▼</span>
+                    </button>
+                    <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                        <p class="p-4 pt-0 text-zinc-600">Meningkatkan titik pemesanan ulang (s) atau kuantitas pesanan (Q) seringkali menaikkan tingkat layanan (lebih sedikit kehabisan stok) tetapi dengan biaya penyimpanan yang lebih tinggi. Sebaliknya, menurunkannya akan mengurangi biaya penyimpanan tetapi meningkatkan risiko kehabisan stok. Kunci utamanya adalah menemukan "sweet spot".</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow accordion-item">
+                    <button class="w-full text-left p-4 font-semibold text-zinc-700 flex justify-between items-center accordion-header">
+                        2. Pentingnya Safety Stock (Stok Pengaman)
+                        <span class="transform transition-transform duration-300">▼</span>
+                    </button>
+                    <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                        <p class="p-4 pt-0 text-zinc-600">Stok pengaman (bagian dari 's' yang berada di atas permintaan rata-rata selama waktu tunggu) adalah penyangga Anda terhadap ketidakpastian. Coba naikkan variabilitas permintaan atau waktu tunggu di simulator. Anda akan melihat bahwa stok pengaman yang lebih tinggi diperlukan untuk mempertahankan tingkat layanan yang sama, yang secara langsung meningkatkan biaya penyimpanan.</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow accordion-item">
+                    <button class="w-full text-left p-4 font-semibold text-zinc-700 flex justify-between items-center accordion-header">
+                        3. Variabilitas adalah Musuh
+                        <span class="transform transition-transform duration-300">▼</span>
+                    </button>
+                    <div class="accordion-content overflow-hidden max-h-0 transition-all duration-500 ease-in-out">
+                        <p class="p-4 pt-0 text-zinc-600">Semakin tinggi variabilitas (ketidakpastian) dalam permintaan dan waktu tunggu, semakin sulit untuk mengelola persediaan secara efisien. Hal ini memaksa perusahaan untuk menyimpan lebih banyak stok pengaman (biaya lebih tinggi) atau menerima risiko kehabisan stok yang lebih besar (kehilangan penjualan dan pelanggan). Mengurangi variabilitas melalui peramalan yang lebih baik atau pemasok yang lebih andal adalah strategi yang sangat efektif.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <footer class="text-center py-6 mt-8 border-t border-zinc-200">
+        <p class="text-zinc-500 text-sm">Dibangun untuk Eksplorasi & Pembelajaran</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('inventoryChart').getContext('2d');
+            
+            const reorderPointSlider = document.getElementById('reorderPoint');
+            const orderQuantitySlider = document.getElementById('orderQuantity');
+            const avgDemandSlider = document.getElementById('avgDemand');
+            const demandStdDevSlider = document.getElementById('demandStdDev');
+            const avgLeadTimeSlider = document.getElementById('avgLeadTime');
+            const leadTimeStdDevSlider = document.getElementById('leadTimeStdDev');
+
+            const reorderPointValue = document.getElementById('reorderPointValue');
+            const orderQuantityValue = document.getElementById('orderQuantityValue');
+            const avgDemandValue = document.getElementById('avgDemandValue');
+            const demandStdDevValue = document.getElementById('demandStdDevValue');
+            const avgLeadTimeValue = document.getElementById('avgLeadTimeValue');
+            const leadTimeStdDevValue = document.getElementById('leadTimeStdDevValue');
+            
+            const totalCostEl = document.getElementById('totalCost');
+            const holdingCostEl = document.getElementById('holdingCost');
+            const orderingCostEl = document.getElementById('orderingCost');
+            const stockoutCostEl = document.getElementById('stockoutCost');
+            const serviceLevelEl = document.getElementById('serviceLevel');
+            
+            let inventoryChart;
+            const SIMULATION_DAYS = 120;
+            const COST_HOLDING_PER_UNIT_PER_DAY = 0.5;
+            const COST_ORDER = 100;
+            const COST_STOCKOUT_PER_UNIT = 25;
+
+            function boxMullerTransform() {
+                let u = 0, v = 0;
+                while(u === 0) u = Math.random();
+                while(v === 0) v = Math.random();
+                return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            }
+
+            function getNormallyDistributedRandomNumber(mean, stddev) {
+                return mean + boxMullerTransform() * stddev;
+            }
+
+            function runSimulation() {
+                const s = parseInt(reorderPointSlider.value);
+                const Q = parseInt(orderQuantitySlider.value);
+                const avgDemand = parseInt(avgDemandSlider.value);
+                const demandStdDev = parseFloat(demandStdDevSlider.value);
+                const avgLeadTime = parseInt(avgLeadTimeSlider.value);
+                const leadTimeStdDev = parseFloat(leadTimeStdDevSlider.value);
+
+                reorderPointValue.textContent = s;
+                orderQuantityValue.textContent = Q;
+                avgDemandValue.textContent = avgDemand;
+                demandStdDevValue.textContent = demandStdDev.toFixed(1);
+                avgLeadTimeValue.textContent = avgLeadTime;
+                leadTimeStdDevValue.textContent = leadTimeStdDev.toFixed(1);
+
+                let inventoryLevel = Q + s;
+                let onOrder = false;
+                let leadTimeRemaining = 0;
+                let orderArrivalDay = -1;
+
+                let totalDemand = 0;
+                let satisfiedDemand = 0;
+                let totalHoldingCost = 0;
+                let totalOrderingCost = 0;
+                let totalStockoutCost = 0;
+                let orderCount = 0;
+
+                const dailyInventory = [];
+                const days = [];
+
+                for (let day = 1; day <= SIMULATION_DAYS; day++) {
+                    if (day === orderArrivalDay) {
+                        inventoryLevel += Q;
+                        onOrder = false;
+                        orderArrivalDay = -1;
+                    }
+
+                    const demand = Math.max(0, Math.round(getNormallyDistributedRandomNumber(avgDemand, demandStdDev)));
+                    totalDemand += demand;
+
+                    let fulfilled = Math.min(inventoryLevel, demand);
+                    satisfiedDemand += fulfilled;
+                    
+                    if (demand > inventoryLevel) {
+                        totalStockoutCost += (demand - inventoryLevel) * COST_STOCKOUT_PER_UNIT;
+                    }
+                    
+                    inventoryLevel -= demand;
+
+                    if (inventoryLevel <= 0) {
+                        inventoryLevel = 0;
+                    }
+
+                    totalHoldingCost += inventoryLevel * COST_HOLDING_PER_UNIT_PER_DAY;
+
+                    if (inventoryLevel <= s && !onOrder) {
+                        onOrder = true;
+                        orderCount++;
+                        const leadTime = Math.max(1, Math.round(getNormallyDistributedRandomNumber(avgLeadTime, leadTimeStdDev)));
+                        orderArrivalDay = day + leadTime;
+                    }
+                    
+                    dailyInventory.push(inventoryLevel);
+                    days.push(`Hari ${day}`);
+                }
+
+                totalOrderingCost = orderCount * COST_ORDER;
+                const totalCost = totalHoldingCost + totalOrderingCost + totalStockoutCost;
+                const serviceLevel = totalDemand > 0 ? (satisfiedDemand / totalDemand) * 100 : 100;
+                
+                totalCostEl.textContent = `Rp ${Math.round(totalCost).toLocaleString('id-ID')}`;
+                holdingCostEl.textContent = `Rp ${Math.round(totalHoldingCost).toLocaleString('id-ID')}`;
+                orderingCostEl.textContent = `Rp ${Math.round(totalOrderingCost).toLocaleString('id-ID')}`;
+                stockoutCostEl.textContent = `Rp ${Math.round(totalStockoutCost).toLocaleString('id-ID')}`;
+                serviceLevelEl.textContent = `${serviceLevel.toFixed(1)}%`;
+
+                updateChart(days, dailyInventory, s);
+            }
+
+            function updateChart(days, dailyInventory, reorderPoint) {
+                if (inventoryChart) {
+                    inventoryChart.destroy();
+                }
+
+                inventoryChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: [{
+                            label: 'Tingkat Persediaan',
+                            data: dailyInventory,
+                            borderColor: '#0d9488',
+                            backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                            fill: true,
+                            borderWidth: 2,
+                            pointRadius: 1,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Titik Pemesanan Ulang (s)',
+                            data: Array(days.length).fill(reorderPoint),
+                            borderColor: '#dc2626',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Unit Persediaan'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Waktu (Hari)'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            }
+                        },
+                        animation: {
+                            duration: 200
+                        }
+                    }
+                });
+            }
+
+            [reorderPointSlider, orderQuantitySlider, avgDemandSlider, demandStdDevSlider, avgLeadTimeSlider, leadTimeStdDevSlider].forEach(slider => {
+                slider.addEventListener('input', runSimulation);
+            });
+            
+            runSimulation();
+
+            document.querySelectorAll('.accordion-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    const accordionItem = header.parentElement;
+                    const accordionContent = accordionItem.querySelector('.accordion-content');
+                    const accordionIcon = header.querySelector('span');
+
+                    if (accordionContent.style.maxHeight) {
+                        accordionContent.style.maxHeight = null;
+                        accordionIcon.style.transform = 'rotate(0deg)';
+                    } else {
+                        accordionContent.style.maxHeight = accordionContent.scrollHeight + "px";
+                        accordionIcon.style.transform = 'rotate(180deg)';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
