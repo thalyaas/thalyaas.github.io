@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulator Interaktif: Economic Order Quantity (EOQ)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Educational Teal & Slate -->
+    <!-- Application Structure Plan: A top-down narrative structure is used to first introduce the concept of EOQ, then present the core interactive calculator and chart for hands-on learning. This is followed by a conceptual breakdown of the costs and a summary of the formula/assumptions. This linear flow is ideal for teaching a new concept, building from theory to interactive practice and finally to contextual details. -->
+    <!-- Visualization & Content Choices: Report Info: EOQ cost trade-off -> Goal: Visualize the relationship between ordering and holding costs -> Viz/Presentation Method: Dynamic multi-line chart (Chart.js/Canvas) with a vertical line indicating EOQ -> Interaction: User manipulates sliders for D, S, and H, causing the chart and key metric cards to update in real-time -> Justification: This transforms a static formula into a dynamic system, allowing users to build a strong intuition for the cost trade-offs, which is the central lesson of the EOQ model. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* slate-50 */
+            color: #1e293b; /* slate-800 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 45vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .slider-value {
+            font-weight: 600;
+            color: #0f766e; /* teal-700 */
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #0f766e;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #0f766e;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <header class="bg-white shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center">
+            <h1 class="text-3xl font-bold text-teal-800">Kalkulator Interaktif Economic Order Quantity (EOQ)</h1>
+            <p class="text-slate-600 mt-1">Temukan Kuantitas Pesanan Optimal untuk Meminimalkan Biaya Persediaan</p>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <section id="interactive-calculator" class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Simulator Biaya Persediaan</h2>
+            <p class="text-slate-600 mb-6 max-w-4xl">Gunakan slider di bawah untuk menyesuaikan variabel input. Perhatikan bagaimana grafik dan hasil perhitungan berubah secara real-time. Tujuannya adalah menemukan titik terendah pada kurva **Total Biaya**, yang merupakan titik EOQ.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div class="lg:col-span-4 space-y-5">
+                    <div>
+                        <label for="demand" class="slider-label"><span>Permintaan Tahunan (D)</span><span id="demandValue" class="slider-value"></span></label>
+                        <input type="range" id="demand" min="100" max="5000" value="1000" step="100" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="orderingCost" class="slider-label"><span>Biaya Pemesanan per Pesanan (S)</span><span id="orderingCostValue" class="slider-value"></span></label>
+                        <input type="range" id="orderingCost" min="5" max="100" value="10" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div>
+                        <label for="holdingCost" class="slider-label"><span>Biaya Penyimpanan per Unit (H)</span><span id="holdingCostValue" class="slider-value"></span></label>
+                        <input type="range" id="holdingCost" min="0.1" max="5" value="0.5" step="0.1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    
+                    <div class="pt-4 space-y-3">
+                        <div class="bg-teal-50 border-l-4 border-teal-500 p-4 rounded-r-lg">
+                            <p class="text-sm font-semibold text-teal-800">Economic Order Quantity (EOQ)</p>
+                            <p id="eoqResult" class="text-2xl font-bold text-teal-900"></p>
+                        </div>
+                         <div class="bg-slate-50 border-l-4 border-slate-400 p-4 rounded-r-lg">
+                            <p class="text-sm font-semibold text-slate-700">Total Biaya Minimum</p>
+                            <p id="totalCostResult" class="text-2xl font-bold text-slate-800"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="lg:col-span-8">
+                    <div class="chart-container">
+                        <canvas id="eoqChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="cost-breakdown" class="mt-12">
+             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="font-bold text-xl text-blue-700">Biaya Pemesanan (Ordering Cost)</h3>
+                    <p class="text-slate-600 mt-2">Biaya yang dikeluarkan setiap kali Anda melakukan pesanan (misalnya, biaya administrasi, pengiriman). Semakin besar kuantitas pesanan Anda, semakin jarang Anda memesan, sehingga total biaya ini menurun.</p>
+                    <p class="mt-3 text-lg font-mono bg-blue-50 text-blue-800 p-2 rounded-md">TC = (D/Q) * S</p>
+                </div>
+                 <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="font-bold text-xl text-orange-700">Biaya Penyimpanan (Holding Cost)</h3>
+                    <p class="text-slate-600 mt-2">Biaya untuk menyimpan persediaan (misalnya, sewa gudang, asuransi, risiko usang). Semakin banyak barang yang Anda pesan, semakin tinggi persediaan rata-rata Anda, sehingga total biaya ini meningkat.</p>
+                    <p class="mt-3 text-lg font-mono bg-orange-50 text-orange-800 p-2 rounded-md">TC = (Q/2) * H</p>
+                </div>
+            </div>
+        </section>
+        
+        <section id="formula-assumptions" class="mt-12 bg-slate-800 text-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-center mb-6">Formula & Asumsi Model</h2>
+            <div class="text-center mb-6">
+                <p class="text-2xl font-mono bg-slate-700 inline-block px-4 py-2 rounded-lg">
+                    Q* = &radic;<span style="text-decoration: overline;">&nbsp;2DS / H&nbsp;</span>
+                </p>
+            </div>
+            <div>
+                <h3 class="font-semibold text-lg text-center text-slate-300 mb-3">Asumsi Penting:</h3>
+                <ul class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 max-w-3xl mx-auto text-slate-300">
+                    <li class="flex items-center"><span class="text-teal-400 mr-2">✓</span> Permintaan diketahui & konstan.</li>
+                    <li class="flex items-center"><span class="text-teal-400 mr-2">✓</span> Biaya pemesanan & penyimpanan konstan.</li>
+                    <li class="flex items-center"><span class="text-teal-400 mr-2">✓</span> Waktu tunggu (lead time) konstan.</li>
+                    <li class="flex items-center"><span class="text-teal-400 mr-2">✓</span> Tidak ada diskon kuantitas.</li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let eoqChart;
+
+        const demandSlider = document.getElementById('demand');
+        const orderingCostSlider = document.getElementById('orderingCost');
+        const holdingCostSlider = document.getElementById('holdingCost');
+
+        const demandValueEl = document.getElementById('demandValue');
+        const orderingCostValueEl = document.getElementById('orderingCostValue');
+        const holdingCostValueEl = document.getElementById('holdingCostValue');
+        
+        const eoqResultEl = document.getElementById('eoqResult');
+        const totalCostResultEl = document.getElementById('totalCostResult');
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
+        }
+
+        function calculateAndDraw() {
+            const D = parseFloat(demandSlider.value);
+            const S = parseFloat(orderingCostSlider.value);
+            const H = parseFloat(holdingCostSlider.value);
+
+            demandValueEl.textContent = `${D.toLocaleString('id-ID')} unit`;
+            orderingCostValueEl.textContent = formatCurrency(S);
+            holdingCostValueEl.textContent = formatCurrency(H);
+
+            const eoq = Math.sqrt((2 * D * S) / H);
+            
+            const maxQuantity = eoq * 2 > 400 ? Math.ceil((eoq * 2) / 100) * 100 : 400;
+            const step = maxQuantity / 20;
+
+            const quantities = [];
+            const holdingCosts = [];
+            const orderingCosts = [];
+            const totalCosts = [];
+
+            for (let q = step; q <= maxQuantity; q += step) {
+                if (q === 0) continue;
+                quantities.push(q);
+                const holdingCost = (q / 2) * H;
+                const orderingCost = (D / q) * S;
+                holdingCosts.push(holdingCost);
+                orderingCosts.push(orderingCost);
+                totalCosts.push(holdingCost + orderingCost);
+            }
+            
+            const totalCostAtEoq = (eoq / 2) * H + (D / eoq) * S;
+
+            eoqResultEl.textContent = `${Math.round(eoq)} unit`;
+            totalCostResultEl.textContent = formatCurrency(totalCostAtEoq);
+
+            updateChart(quantities, holdingCosts, orderingCosts, totalCosts, eoq);
+        }
+
+        function updateChart(quantities, holdingCosts, orderingCosts, totalCosts, eoq) {
+            const chartData = {
+                labels: quantities.map(q => q.toFixed(0)),
+                datasets: [
+                    {
+                        label: 'Total Biaya',
+                        data: totalCosts,
+                        borderColor: '#1e293b', // slate-800
+                        backgroundColor: 'transparent',
+                        borderWidth: 3,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        order: 0
+                    },
+                    {
+                        label: 'Biaya Penyimpanan',
+                        data: holdingCosts,
+                        borderColor: '#ea580c', // orange-600
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        order: 1
+                    },
+                    {
+                        label: 'Biaya Pemesanan',
+                        data: orderingCosts,
+                        borderColor: '#2563eb', // blue-600
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        order: 1
+                    }
+                ]
+            };
+            
+            const eoqAnnotation = {
+                type: 'line',
+                mode: 'vertical',
+                scaleID: 'x',
+                value: eoq,
+                borderColor: '#0f766e', // teal-700
+                borderWidth: 2,
+                borderDash: [6, 6],
+                label: {
+                    enabled: true,
+                    content: `EOQ: ${eoq.toFixed(0)}`,
+                    position: 'start',
+                    backgroundColor: '#0f766e'
+                }
+            };
+
+            if (eoqChart) {
+                eoqChart.data = chartData;
+                eoqChart.options.plugins.annotation.annotations.line1 = eoqAnnotation;
+                eoqChart.update();
+            } else {
+                const config = {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Kuantitas Pesanan (Q)' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Biaya Tahunan (Rp)' },
+                                ticks: {
+                                    callback: function(value, index, values) {
+                                        return formatCurrency(value);
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += formatCurrency(context.parsed.y);
+                                        return label;
+                                    }
+                                }
+                            },
+                            annotation: {
+                                annotations: {
+                                    line1: eoqAnnotation
+                                }
+                            }
+                        },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                    }
+                };
+                 eoqChart = new Chart(document.getElementById('eoqChart'), config);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Membutuhkan Chart.js Annotation Plugin untuk garis EOQ
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js';
+            script.onload = () => {
+                demandSlider.addEventListener('input', calculateAndDraw);
+                orderingCostSlider.addEventListener('input', calculateAndDraw);
+                holdingCostSlider.addEventListener('input', calculateAndDraw);
+                calculateAndDraw();
+            };
+            document.head.appendChild(script);
+        });
+    </script>
+
+</body>
+</html>
+
